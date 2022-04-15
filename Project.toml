@@ -1,3 +1,9 @@
 name = "SARSOP_julia"
-uuid = "a2ab5c31-e4e3-4416-981c-e245f1c15c1d"
-version = "0.1"
+uuid = "57a7f986-9b28-4c41-8655-937f5bab5ace"
+authors = ["Jackson Wagner <geek.jackson@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+POMDPModelTools = "08074719-1b2a-587c-a292-00f91cc44415"
+POMDPPolicies = "182e52fb-cfd0-5e46-8c26-fd0667c990f4"
+POMDPs = "a93abf59-7444-517b-a68a-c42f96afdd7d"

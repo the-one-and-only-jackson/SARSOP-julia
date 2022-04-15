@@ -7,3 +7,9 @@ TODO:
     1. Write algorithm... (this is big)
     2. Write tests
     3. Automate testing w/ github
+
+https://pkgdocs.julialang.org/v1/environments/
+Go into pkg mode by pressing "]"
+activate project by "activate ."
+"instantiate"
+"precompile"
