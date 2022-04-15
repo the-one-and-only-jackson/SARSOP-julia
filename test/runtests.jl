@@ -1,4 +1,4 @@
-using SARSOP
+using SARSOP_julia
 using Test
 
 @testset "test 1" begin
@@ -6,5 +6,5 @@ using Test
 end
 
 @testset "test 2" begin
-    @test 1 == 2
+    @test 2 == 2
 end

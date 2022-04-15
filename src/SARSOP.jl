@@ -1,4 +1,4 @@
-module SARSOP
+module SARSOP_julia
 
 using POMDPs
 using POMDPModelTools
