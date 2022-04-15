@@ -1,6 +1,6 @@
 # ========== Algorithm 1 ==========
 function SARSOP_main(solver::SARSOPSolver, pomdp::POMDP)
-    # 1. Initialize the set Γ of α-vectors, representing the lower bound V on the optimal value function V∗. Initialize the upper bound V̄ on V∗.
+    # 1. Initialize the set Γ of α-vectors, representing the lower bound V̲ on the optimal value function V∗. Initialize the upper bound V̄ on V∗.
     # 2. Insert the initial belief point b0 as the root of the tree T_R.
     # 3. repeat 
     # 4. SAMPLE(T_R, Γ)
@@ -11,13 +11,16 @@ function SARSOP_main(solver::SARSOPSolver, pomdp::POMDP)
 
 
     # how to initialize lower bound alpha vectors?
+    # α_vectors = ?????
+    # action_map = ?????
     Γ = AlphaVectorPolicy(pomdp, α_vectors, action_map)
 
     # how to initialize upper bound V̄?
     # V̄ = 
 
     # how to represent belief tree?
-    # T_r = 
+    b0 = ones(length(states(pomdp)))/length(states(pomdp)) # uniform weighted, probably wrong
+    T_R = Tree(b0)
 
     terminal_condition = false
     while !terminal_condition
@@ -28,6 +31,12 @@ function SARSOP_main(solver::SARSOPSolver, pomdp::POMDP)
             Backup(T_R, Γ, b)
         end
 
+        # possibly: 
+        # for ii in rand(1:T_R.n_nodes)
+        #     b = selectNode(T_R, ii) # this function would need to be made, not difficult
+        #     Backup(T_R, Γ, b)
+        # end
+
         PRUNE(T_R, Γ)
     end
 
@@ -36,7 +45,7 @@ end
 
 # ========== Algorithm 2 ==========
 # Perform α-vector backup at a node b of T_R
-function Backup(T_R, Γ, b)
+function Backup(T_R::Tree, Γ::AlphaVectorPolicy, b)
     # 1. α_{a,o} ← argmax_α (α ⋅ τ(b,a,o)), ∀ a∈𝒜, o∈𝒪
     # 2. α_a(s) ← R(s,a) + γ ∑_{o,s′} T(s,a,s′)Z(s′,a,o)α_{a,o}(s′), ∀ a∈𝒜, s∈𝒮
     # 3. α′ ← argmax(α_a ⋅ b, for a in 𝒜)
@@ -60,7 +69,7 @@ function Backup(T_R, Γ, b)
             temp_sum = 0.0
             for (s′, T) in weighted_iterator(transition(pomdp, s, a))
                 for (o, Z) in weighted_iterator(observation(pomdp, a, s′))
-                    b′ = τ(b,a,o)
+                    b′ = τ(b,a,o) # this is bad, should be looking at children. What to do if no children??
                     temp_sum += T * Z * argmax_(α_ -> α_ ⋅ b′, α_vectors)
                 end
             end
@@ -77,12 +86,19 @@ end
 
 # ========== Algorithm 3 ==========
 # Sampling near R*
-function Sample(T_R, Γ)
+function Sample(T_R::Tree, Γ::AlphaVectorPolicy)
     # 1. Set L to the current lower bound on the value function at the root b_0 of T_R. Set U to L + ϵ, where ϵ is the current target gap size at b0.
     # 2. SAMPLEPOINTS(T_R, Γ, b_0, L, U, ϵ, 1).
+
+    b = T_R.b0.b
+    ϵ = 0 # ??????????????????? wtf is this value supposed to be, definitely not zero
+    L = maximum(α ⋅ T_R.b0 for α in Γ)
+    U = L + ϵ 
+    
+    SAMPLEPOINTS(T_R, Γ, b, L, U, ϵ, 1)
 end
 
-function SamplePoints(T_r, Γ, b, L, U, ϵ, t)
+function SamplePoints(T_R::Tree, Γ::AlphaVectorPolicy, b, L, U, ϵ, t)
     # 3. Let V̂ be the predicted value of V*(b).
     # 4. if V̂ ≤ L and V̄ ≤ max{U, V̲(b) + ϵγ^{-t}} then
     # 5.    return
@@ -101,7 +117,7 @@ end
 
 # ========== needed functions ==========
 
-function PRUNE(T_R, Γ)
+function PRUNE(T_R::Tree, Γ::AlphaVectorPolicy)
     # see section III.D
 end
 
@@ -114,5 +130,5 @@ end
 
 
 
-# ========== helper function ==========
+# ========== helper functions ==========
 argmax_(f, domain) = domain[argmax(f, domain)]

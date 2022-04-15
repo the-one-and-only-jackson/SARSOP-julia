@@ -18,6 +18,7 @@ export
     solve
 
 include("solver.jl")
+include("tree.jl")
 include("core.jl")
 
 end # module
