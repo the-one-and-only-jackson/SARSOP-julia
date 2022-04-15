@@ -11,7 +11,7 @@ export
     SARSOPSolver,
     solve
 
-include("SARSOP_vanilla.jl")
+include("core.jl")
 
 # Add sovler parameters as needed, making sure to specify types when possible.
 # When adding a parameter, update the helper function
