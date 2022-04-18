@@ -1,77 +1,98 @@
-# Based on Fig. 2
+# search for "# metadata update here"
 
-# note: "b" could either mean the node, or the actual belief vector depending on context
-
-# NONE OF THIS IS TESTED, I JUST WANTED TO GET SOMETHING DONE TODAY.
-# TODO: 
-#   1. Make sure this is all that is required of the tree
-#   2. Add additional helper functions if needed
-#   3. Add tests to make sure this works
-
-const bType = Vector # this is the structure of the belief (NOT the belief node), can be changed if wanted
-
-mutable struct Tree
-    b0::BeliefNode
-    n_nodes::Int # number of belief nodes
+mutable struct BeliefTree
+    root::Node
+    n_nodes::Int
 end
-Tree(b0) = Tree(BeliefNode(b0), 1)
 
-# possibly add type constraints later? particularly for the dicts
-struct BeliefNode
-    b::bType # belief vector, make sure to use ordered states when constructing
-    actionNodes::Dict # actionNodes[action] = ActionNode
+function BeliefTree(pomdp::POMDP)
+    belief = uniform_belief(pomdp)
+    children = Vector{ActionNode{actiontype(pomdp)}}()
+    metadata = BeliefData() # metadata update here
+    BN = BeliefNode(belief, children, metadata)
+    return BeliefTree(BN, 1)
 end
-BeliefNode(b) = BeliefNode(b, Dict())
 
-struct ActionNode
-    a
-    beliefNodes::Dict # beliefNodes[observation] = BeliefNode
+function get_ActionNode!(parent::BeliefNode, a)
+    for AN in children(parent) # check if action exists
+        if value(AN) == a
+            return AN
+        end
+    end
+
+    # if action node does not exist, create it
+    belief = value(parent)
+    pomdp, 𝒮, b = belief.pomdp, belief.state_list, belief.b
+    R = sum(b*POMDPs.reward(pomdp,s,a) for (s,b) in zip(𝒮, b))
+
+    metadata = ActionData(reward = R) # metadata update here
+    AN = ActionNode(a, Vector{BeliefNode}(), metadata)
+    push!(children(parent), AN)
+
+    return AN
 end
-ActionNode(a) = ActionNode(a, Dict())
 
-
-function insert!(tree::Tree, parent::BeliefNode, b::bType, a, o) # creates a child belief node
-    AN = get!(parent.actionNodes, a, ActionNode(a)) # is it faster to write if-else here?
+function insert_BeliefNode!(tree::BeliefTree, parent::BeliefNode, a, o) # creates a child belief node
+    AN = get_ActionNode!(parent, a)
     
-    if !haskey(AN, o) # if (b′,a′,o′) exists, do nothing (is this correct?) 
-        AN.beliefNodes[o] = BeliefNode(b)
-        tree.n_nodes += 1
-    end
-
-    nothing
-end
-
-function count_children(parent::BeliefNode)
-    # counts number of children belief nodes
-    # may be useful for random selection, and therefore pruning
-
-    n = 0
-    for AN in values(parent)
-        for BN in values(AN.beliefNodes)
-            n += count_children(BN)
+    for BN in children(AN) # check if belief already exists
+        if observation(BN) == o
+            return BN
         end
     end
-    return n
+
+    # this belief computation is crap, fix later to make faster
+    belief = value(parent)
+    pomdp, 𝒮, b = belief.pomdp, belief.state_list, belief.b
+
+    # calculate the new belief
+    b′ = similar(b)
+    for (si′,s′) in enumerate(𝒮)
+        _sum = 0.0
+        for (s,b_s) in zip(𝒮,b)
+            _sum += pdf(transition(pomdp,s,a),s′) * b_s
+        end
+        b′[si′] = pdf(POMDPs.observation(pomdp,a,s′),o) * _sum
+        K += b′[si′]
+    end
+    b′ /= K
+
+    belief = DiscreteBelief(pomdp,𝒮,b′)
+    children = Vector{ActionNode{actiontype(pomdp)}}()
+    metadata = BeliefData(observation=o, norm_const=K) # metadata update here
+
+    BN = BeliefNode(belief, children, metadata)
+    push!(AN.children, BN)
+    tree.n_nodes += 1
+    
+    # populate BN's children (to see reward)
+    for a in actions(pomdp, b′)
+        get_ActionNode!(BN, a)
+    end
+
+    return BN
 end
 
-function prune_tree(tree::Tree, BN::BeliefNode, a)
-    # Recursively prunes branch corresponding to taking action a at belief node BN.
-    # I think the recusion will help the garbage collector, if this is not true,
-    # can just count_children and delete the action node.
+function prune_tree(tree::BeliefTree, parent::BeliefNode, a)
+    # Prunes an action branch of the belief tree
+    # a is an action, not an action node
 
-    if haskey(BN, a)
-        AN = BN.actionNodes[a]
+    # I think recusion will help the garbage collector, implement this later
 
-        for (o,BN′) in pairs(AN.beliefNodes)
-            for a′ in keys(BN′.actionNodes)
-                prune_tree(tree, BN′, a′)
+    for AN in children(parent)
+        if value(AN) == a
+            tree.n_nodes -= count_subchildren(AN)
+
+            new_children = []
+            for AN′ in children(parent)
+                if AN != AN′
+                    push!(new_children, AN′)
+                end
             end
+            parent.children = new_children
 
-            delete!(AN, o)
-            tree.n_nodes -= 1
+            break
         end
-
-        delete!(BN, a)
     end
 
     nothing

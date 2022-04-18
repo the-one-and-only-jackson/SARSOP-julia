@@ -45,43 +45,65 @@ end
 
 # ========== Algorithm 2 ==========
 # Perform α-vector backup at a node b of T_R
-function Backup(T_R::Tree, Γ::AlphaVectorPolicy, b)
+function Backup(T_R::BeliefTree, Γ::AlphaVectorPolicy, parent::BeliefNode)
     # 1. α_{a,o} ← argmax_α (α ⋅ τ(b,a,o)), ∀ a∈𝒜, o∈𝒪
     # 2. α_a(s) ← R(s,a) + γ ∑_{o,s′} T(s,a,s′)Z(s′,a,o)α_{a,o}(s′), ∀ a∈𝒜, s∈𝒮
     # 3. α′ ← argmax(α_a ⋅ b, for a in 𝒜)
     # 4. Insert α′ into Γ.
 
-    # CURRENT ISSUE:
-    # This should only be looking at the children of B, rather than the entire pomdp.
-    # This is not stated in the algorithm, but rather in Section III.B 
-    # Will need to reasses how to compute. Rather than iterate over all actions, observations,
-    # should instead iterate over children of b.
+    # https://www.overleaf.com/read/rwfcytcbvrtz
 
     pomdp, α_vectors, action_map = Γ.pomdp, Γ.α_vectors, Γ.action_map
 
-    𝒜 = ordered_actions(pomdp)
-    𝒮 = ordered_states(pomdp)
-    γ = discount(pomdp)
+    a_opt = rand(actions(pomdp))
+    V = -Inf
 
-    α = zeros( length(𝒮), length(𝒜) )
-    for (ai, a) in 𝒜
-        for (si, s) in 𝒮
-            temp_sum = 0.0
-            for (s′, T) in weighted_iterator(transition(pomdp, s, a))
-                for (o, Z) in weighted_iterator(observation(pomdp, a, s′))
-                    b′ = τ(b,a,o) # this is bad, should be looking at children. What to do if no children??
-                    temp_sum += T * Z * argmax_(α_ -> α_ ⋅ b′, α_vectors)
-                end
-            end
-            α[si, ai] = reward(pomdp,s,a) + γ * temp_sum
+    for AN in children(parent)
+        _sum = 0.0
+
+        for BN′ in children(AN)
+            b = belief(BN′)
+            _sum += norm_const(BN′) * maximum(α ⋅ b for α in Γ)
+        end
+
+        _sum = reward(AN) + discount(pomdp)*_sum
+
+        if _sum > V
+            V = _sum
+            a_opt = value(AN)
         end
     end
 
-    idx = argmax( vec( b' * α ) ) # vec vs transpose for speed?
-    push!(α_vectors, α[:, idx])
-    push!(action_map, 𝒜[idx])
+    push!(action_map, a_opt)
+    push!(α_vectors, calc_α(Γ, parent, a_opt))
+    
 
     return AlphaVectorPolicy(pomdp, α_vectors, action_map)
+end
+
+function calc_α(Γ::AlphaVectorPolicy, parent::BeliefNode, a)
+    belief = value(parent)
+    pomdp, 𝒮, b = belief.pomdp, belief.state_list, belief.b
+
+    α′ = similar(b)
+
+    AN = insert_ActionNode!(parent, a)
+
+    for (si,s) in enumerate(𝒮)
+        _sum = 0.0
+        for (s′,T) in weighted_iterator(transition(pomdp,s,a))
+            Z = observation(pomdp,a,s′)
+            for BN in children(AN)
+                o = observation(BN)
+                b′ = belief(BN)
+                _sum += T * pdf(Z,o) * Γ[argmax(α ⋅ b′ for α in Γ)]
+            end
+        end
+
+        α′[si] = reward(pomdp,s,a) + discount(pomdp) * _sum
+    end
+
+    return α′
 end
 
 # ========== Algorithm 3 ==========

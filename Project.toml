@@ -4,6 +4,8 @@ authors = ["Jackson Wagner <geek.jackson@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+BeliefUpdaters = "8bb6e9a1-7d73-552c-a44a-e5dc5634aac4"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 POMDPModelTools = "08074719-1b2a-587c-a292-00f91cc44415"
 POMDPPolicies = "182e52fb-cfd0-5e46-8c26-fd0667c990f4"
 POMDPs = "a93abf59-7444-517b-a68a-c42f96afdd7d"

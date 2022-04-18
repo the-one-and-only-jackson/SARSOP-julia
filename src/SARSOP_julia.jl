@@ -9,6 +9,8 @@ module SARSOP_julia
 using POMDPs
 using POMDPModelTools
 using POMDPPolicies
+using BeliefUpdaters
+using LinearAlgebra
 
 import POMDPs: Solver
 import POMDPs: solve
@@ -18,6 +20,7 @@ export
     solve
 
 include("solver.jl")
+include("node.jl")
 include("tree.jl")
 include("core.jl")
 
