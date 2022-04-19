@@ -145,7 +145,7 @@ end
 
 # ========== needed functions ==========
 
-function PRUNE(tree::TreBeliefTreee, Γ::AlphaVectorPolicy) # not sure what parameters needed h;ere
+function PRUNE(tree::BeliefTree, Γ::AlphaVectorPolicy) # not sure what parameters needed h;ere
     # see section III.D
 
     # insert code to determine which belief-action pair to prune?
