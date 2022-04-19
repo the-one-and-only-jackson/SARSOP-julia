@@ -16,28 +16,32 @@ function SARSOP_main(solver::SARSOPSolver, pomdp::POMDP)
     Γ = AlphaVectorPolicy(pomdp, α_vectors, action_map)
 
     # how to initialize upper bound V̄?
+    # possibly with QMDP? the sarsop paper seems to mention this, 
+    # but im not sure how this is a guaranteed upper bound
+    # another issue: where do we store this? in the tree perhaps?
+    # each node will need an upper bound, but that must be assigned later
     # V̄ = 
 
-    # how to represent belief tree?
+    
     b0 = ones(length(states(pomdp)))/length(states(pomdp)) # uniform weighted, probably wrong
-    T_R = Tree(b0)
+    tree = Tree(b0)
 
     terminal_condition = false
     while !terminal_condition
-        Sample(T_R, Γ)
+        Sample(tree, Γ)
 
-        subset_T_R = [] # build this somehow
-        for b in subset_T_R
-            Backup(T_R, Γ, b)
+        subset_tree = [] # build this somehow
+        for b in subset_tree
+            Backup(tree, Γ, b)
         end
 
         # possibly: 
-        # for ii in rand(1:T_R.n_nodes)
-        #     b = selectNode(T_R, ii) # this function would need to be made, not difficult
-        #     Backup(T_R, Γ, b)
+        # for ii in rand(1:tree.n_nodes)
+        #     b = selectNode(tree, ii) # this function would need to be made, not difficult
+        #     Backup(tree, Γ, b)
         # end
 
-        PRUNE(T_R, Γ)
+        PRUNE(tree, Γ)
     end
 
     return Γ # return alpha vectors and corresponding actions
@@ -52,10 +56,12 @@ function Backup(T_R::BeliefTree, Γ::AlphaVectorPolicy, parent::BeliefNode)
     # 4. Insert α′ into Γ.
 
     # https://www.overleaf.com/read/rwfcytcbvrtz
+    # lightweight calcultion of optimal action, then more intensive calcultion
+    # of the alpha vector correspodning to that belief/action
 
     pomdp, α_vectors, action_map = Γ.pomdp, Γ.α_vectors, Γ.action_map
 
-    a_opt = rand(actions(pomdp))
+    a_opt = rand(POMDPs.actiontype(pomdp))
     V = -Inf
 
     for AN in children(parent)
@@ -89,18 +95,18 @@ function calc_α(Γ::AlphaVectorPolicy, parent::BeliefNode, a)
 
     AN = insert_ActionNode!(parent, a)
 
-    for (si,s) in enumerate(𝒮)
+    for (si,s) in enumerate(𝒮) # this may need to be refined in the future
         _sum = 0.0
         for (s′,T) in weighted_iterator(transition(pomdp,s,a))
-            Z = observation(pomdp,a,s′)
+            Z = POMDPs.observation(pomdp,a,s′)
             for BN in children(AN)
                 o = observation(BN)
                 b′ = belief(BN)
-                _sum += T * pdf(Z,o) * Γ[argmax(α ⋅ b′ for α in Γ)]
+                _sum += T * pdf(Z,o) * argmax_(α->α⋅b′, Γ)
             end
         end
 
-        α′[si] = reward(pomdp,s,a) + discount(pomdp) * _sum
+        α′[si] = POMDPs.reward(pomdp,s,a) + POMDPs.discount(pomdp) * _sum
     end
 
     return α′
@@ -108,7 +114,7 @@ end
 
 # ========== Algorithm 3 ==========
 # Sampling near R*
-function Sample(T_R::Tree, Γ::AlphaVectorPolicy)
+function Sample(T_R::BeliefTree, Γ::AlphaVectorPolicy)
     # 1. Set L to the current lower bound on the value function at the root b_0 of T_R. Set U to L + ϵ, where ϵ is the current target gap size at b0.
     # 2. SAMPLEPOINTS(T_R, Γ, b_0, L, U, ϵ, 1).
 
@@ -120,7 +126,7 @@ function Sample(T_R::Tree, Γ::AlphaVectorPolicy)
     SAMPLEPOINTS(T_R, Γ, b, L, U, ϵ, 1)
 end
 
-function SamplePoints(T_R::Tree, Γ::AlphaVectorPolicy, b, L, U, ϵ, t)
+function SamplePoints(T_R::BeliefTree, Γ::AlphaVectorPolicy, b, L, U, ϵ, t)
     # 3. Let V̂ be the predicted value of V*(b).
     # 4. if V̂ ≤ L and V̄ ≤ max{U, V̲(b) + ϵγ^{-t}} then
     # 5.    return
@@ -139,15 +145,16 @@ end
 
 # ========== needed functions ==========
 
-function PRUNE(T_R::Tree, Γ::AlphaVectorPolicy)
+function PRUNE(tree::TreBeliefTreee, Γ::AlphaVectorPolicy) # not sure what parameters needed h;ere
     # see section III.D
-end
 
-# belief update - section III.B
-# implement using DiscreteUpater package, as in HW 6?
-function τ(b,a,o)
-    # b′(s′) = τ(b,a,o) = η Z(s′,a,o) ∑_s T(s,a,s′)b(s)
-    return b′
+    # insert code to determine which belief-action pair to prune?
+
+    # BN = BeliefNode
+    # a = action (not ActionNode)
+    prune_tree(tree, BN, a)
+
+    nothing
 end
 
 
