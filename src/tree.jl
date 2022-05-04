@@ -3,6 +3,7 @@
 mutable struct BeliefTree
     root::Node
     n_nodes::Int
+    qmdp_policy::AlphaVectorPolicy
 end
 
 function BeliefTree(pomdp::POMDP)
@@ -10,7 +11,13 @@ function BeliefTree(pomdp::POMDP)
     children = Vector{ActionNode{actiontype(pomdp)}}()
     metadata = BeliefData() # metadata update here
     BN = BeliefNode(belief, children, metadata)
-    return BeliefTree(BN, 1)
+
+    # qmdp upper bound
+    solver = QMDPSolver()
+    # solver = QMDPSolver(SparseValueIterationSolver())
+    policy = solve(solver, pomdp)
+
+    return BeliefTree(BN, 1, policy)
 end
 
 function get_ActionNode!(parent::BeliefNode, a)
@@ -32,7 +39,7 @@ function get_ActionNode!(parent::BeliefNode, a)
     return AN
 end
 
-function insert_BeliefNode!(tree::BeliefTree, parent::BeliefNode, a, o) # creates a child belief node
+function insert_BeliefNode!(tree::BeliefTree, parent::BeliefNode, b′, a, o, K) # creates a child belief node
     AN = get_ActionNode!(parent, a)
     
     for BN in children(AN) # check if belief already exists
@@ -41,25 +48,12 @@ function insert_BeliefNode!(tree::BeliefTree, parent::BeliefNode, a, o) # create
         end
     end
 
-    # this belief computation is crap, fix later to make faster
-    belief = value(parent)
-    pomdp, 𝒮, b = belief.pomdp, belief.state_list, belief.b
-
-    # calculate the new belief
-    b′ = similar(b)
-    for (si′,s′) in enumerate(𝒮)
-        _sum = 0.0
-        for (s,b_s) in zip(𝒮,b)
-            _sum += pdf(transition(pomdp,s,a),s′) * b_s
-        end
-        b′[si′] = pdf(POMDPs.observation(pomdp,a,s′),o) * _sum
-        K += b′[si′]
-    end
-    b′ /= K
+    pomdp, 𝒮 = value(parent).pomdp, value(parent).state_list
 
     belief = DiscreteBelief(pomdp,𝒮,b′)
     children = Vector{ActionNode{actiontype(pomdp)}}()
-    metadata = BeliefData(observation=o, norm_const=K) # metadata update here
+    UB = maximum(α ⋅ b′ for α in tree.qmdp_policy.alphas)
+    metadata = BeliefData(observation=o, norm_const=K, UB=UB) # metadata update here
 
     BN = BeliefNode(belief, children, metadata)
     push!(AN.children, BN)

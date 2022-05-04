@@ -134,6 +134,12 @@ git-tree-sha1 = "80c3e8639e3353e5d2912fb3a1916b8455e2494b"
 uuid = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
 version = "0.4.0"
 
+[[deps.DiscreteValueIteration]]
+deps = ["POMDPLinter", "POMDPModelTools", "POMDPPolicies", "POMDPs", "Printf", "SparseArrays"]
+git-tree-sha1 = "7ac002779617a7e1693ccdcc3a534f555b3ea61e"
+uuid = "4b033969-44f6-5439-a48b-c11fa3648068"
+version = "0.4.5"
+
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
@@ -389,6 +395,12 @@ version = "1.2.5"
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[[deps.QMDP]]
+deps = ["DiscreteValueIteration", "POMDPLinter", "POMDPModelTools", "POMDPPolicies", "POMDPs", "Random"]
+git-tree-sha1 = "4f5b20454c103900dbd6aa74184c16d311a5063c"
+uuid = "3aa3ecc9-5a5d-57c8-8188-3e47bd8068d2"
+version = "0.1.6"
 
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
