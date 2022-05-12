@@ -1,7 +1,6 @@
 using Revise
 using SARSOP_julia
 using POMDPModels: TigerPOMDP
-using POMDPs
 using Plots
 using SARSOP
 

@@ -1,11 +1,5 @@
 module SARSOP_julia
 
-# when adding dependencies:
-# https://pkgdocs.julialang.org/v1/creating-packages/
-# skip the "generate", as the files already exist
-# go into the pkg prompt, "activate .", then in the REPL "add POMDPs" for example
-# this is needed to update the Project.toml dependencies.
-
 using POMDPs
 using POMDPModelTools
 using POMDPPolicies
@@ -28,6 +22,23 @@ SARSOPSolver(; ϵ=1e-3, max_time=60) = SARSOPSolver(ϵ, max_time)
 
 include("node.jl")
 include("tree.jl")
-include("core.jl")
+include("init.jl")
+include("sample.jl")
+include("backup.jl")
+include("prune.jl")
+
+function solve(solver::SARSOPSolver, pomdp::POMDP)
+    Γ = alpha_init(pomdp)
+    tree = BeliefTree(pomdp)
+
+    start_time = time_ns()
+    while time_ns()-start_time < solver.max_time
+        Sample(solver, tree, Γ)
+        backup_all(tree, Γ, tree.root)
+        Γ = PRUNE(tree, Γ)
+    end
+
+    return Γ # return alpha vectors and corresponding actions
+end
 
 end

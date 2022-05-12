@@ -1,8 +1,3 @@
-# when possible, impelement functions to get/set data so that node 
-# impelementation can change, but code outside of this file stays the Sample.
-# Note: set functions only matter if the value can change e.g. observation is
-# a constant and only needs a get function
-
 abstract type Node end
 value(n::Node) = n.value
 children(n::Node) = n.children
@@ -10,7 +5,7 @@ metadata(n::Node) = n.metadata
 
 mutable struct BeliefData
     observation
-    norm_const::Float64 # = sum(b′) = ∑_{s,s′} Z(s′,a,o) T(s,a,s′) b(s) where b(s) is the parent belief, before normalization of b′
+    norm_const::Float64 # = p(o|b,a)
     UB::Float64
     LB::Float64
 end
@@ -65,9 +60,6 @@ end
 
 
 function count_subchildren(parent::Node)
-    # counts number of children belief nodes, including parent node
-    # may be useful for random selection, and therefore needed in pruning?
-
     n = Int(typeof(parent) == BeliefNode)
     for child in children(parent)
         n += count_children(child)

@@ -1,22 +1,7 @@
-# search for "# metadata update here"
-
 mutable struct BeliefTree
     root::Node
     n_nodes::Int
     qmdp_policy::AlphaVectorPolicy
-end
-
-function BeliefTree(pomdp::POMDP)
-    belief = uniform_belief(pomdp)
-    children = Vector{ActionNode{actiontype(pomdp)}}()
-    metadata = BeliefData(observation=rand(POMDPs.observations(pomdp))) # metadata update here
-    BN = BeliefNode(belief, children, metadata)
-
-    # qmdp upper bound
-    solver = QMDPSolver()
-    policy = solve(solver, pomdp)
-
-    return BeliefTree(BN, 1, policy)
 end
 
 function get_ActionNode!(parent::BeliefNode, a)
@@ -67,26 +52,25 @@ function insert_BeliefNode!(tree::BeliefTree, parent::BeliefNode, b′, a, o, K)
 end
 
 function prune_tree(tree::BeliefTree, parent::BeliefNode, a)
-    # Prunes an action branch of the belief tree
-    # a is an action, not an action node
-
-    # I think recusion will help the garbage collector, implement this later
-
     for AN in children(parent)
         if value(AN) == a
-            tree.n_nodes -= count_subchildren(AN)
-
-            new_children = []
-            for AN′ in children(parent)
-                if AN != AN′
-                    push!(new_children, AN′)
-                end
-            end
-            parent.children = new_children
-
+            prune_tree(tree, parent, AN)
             break
         end
     end
+    nothing
+end
+
+function prune_tree(tree::BeliefTree, parent::BeliefNode, AN::ActionNode)
+    tree.n_nodes -= count_subchildren(AN)
+
+    new_children = Vector{ActionNode}[]
+    for AN′ in children(parent)
+        if AN != AN′
+            push!(new_children, AN′)
+        end
+    end
+    parent.children = new_children
 
     nothing
 end
