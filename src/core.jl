@@ -1,3 +1,13 @@
+using Plots
+function alpha_plot(Γ)
+    p = plot(plot(xlims=[0,1], ylims=[-80,30]))
+    for (a,α) ∈ zip(Γ.action_map, Γ.alphas)
+        plot!(p, [0,1], α, label=a)
+    end
+    display(p)
+end
+
+
 # ========== Algorithm 1 ==========
 function solve(solver::SARSOPSolver, pomdp::POMDP)
     # 1. Initialize the set Γ of α-vectors, representing the lower bound V̲ on the 
@@ -14,10 +24,17 @@ function solve(solver::SARSOPSolver, pomdp::POMDP)
     tree = BeliefTree(pomdp)
 
     start_time = time_ns()
+    count = 0
     while time_ns()-start_time < solver.max_time
+        count += 1
+        println(count)
+
         Sample(solver, tree, Γ)
         backup_all(tree, Γ, tree.root)
-        PRUNE(tree, Γ)
+        Γ = PRUNE(tree, Γ)
+
+        alpha_plot(Γ)
+        println("nodes: $(tree.n_nodes)")
     end
 
     return Γ # return alpha vectors and corresponding actions
@@ -95,7 +112,7 @@ function calc_α(Γ::AlphaVectorPolicy, parent::BeliefNode, a)
 
     α′ = similar(b)
 
-    AN = insert_ActionNode!(parent, a)
+    AN = get_ActionNode!(parent, a)
 
     for (si,s) in enumerate(𝒮) # this may need to be refined in the future
         _sum = 0.0
@@ -103,8 +120,9 @@ function calc_α(Γ::AlphaVectorPolicy, parent::BeliefNode, a)
             Z = POMDPs.observation(pomdp,a,s′)
             for BN in children(AN)
                 o = observation(BN)
-                b′ = belief(BN)
-                _sum += T * pdf(Z,o) * argmax(α->α⋅b′, Γ.alphas)
+                b′ = BN.value.b
+                α_ao = argmax(α->α⋅b′, Γ.alphas)
+                _sum += T * pdf(Z,o) * α_ao[POMDPs.stateindex(pomdp,s′)]
             end
         end
 
@@ -160,8 +178,9 @@ function SamplePoints(tree::BeliefTree, Γ::AlphaVectorPolicy, BN::BeliefNode, L
     L′ = max(L, V̲)
     U′ = max(U, V̲ + γ^(-t)*ϵ)
 
-    b′ = similar(belief(BN))
-    o′ = similar(observation(BN))
+    b = belief(BN)
+    b′ = similar(b)
+    o′ = observation(BN)
     K = 0.0 # p(o′|b,a′)
     max_val = -Inf
     Γ_upper = tree.qmdp_policy
@@ -173,18 +192,21 @@ function SamplePoints(tree::BeliefTree, Γ::AlphaVectorPolicy, BN::BeliefNode, L
     for o in POMDPs.observations(pomdp)
         (b′_temp, K_temp) = τ(BN, a′, o)
 
-        temp_V̲ = argmax(α->α⋅b′_temp, Γ.alphas)
-        temp_V̄ = argmax(α->α⋅b′_temp, Γ_upper.alphas)
+        temp_V̲ = maximum(α->α⋅b′_temp, Γ.alphas)
+        temp_V̄ = maximum(α->α⋅b′_temp, Γ_upper.alphas)
+
+        temp_val = K_temp*(temp_V̄-temp_V̲) 
 
         L_sum += K_temp * temp_V̲
         U_sum += K_temp * temp_V̄
 
-        if K_temp*(temp_V̄-temp_V̲) > max_val
+        if temp_val > max_val
             b′ = b′_temp
             o′ = o
-            K = K_temp
-            V̲ = temp_V̲
-            V̄ = temp_V̄
+            K  = K_temp
+            V̲  = temp_V̲
+            V̄  = temp_V̄
+            max_val = temp_val
         end
     end
 
@@ -197,9 +219,9 @@ function SamplePoints(tree::BeliefTree, Γ::AlphaVectorPolicy, BN::BeliefNode, L
     L_t = ((L′-R)/γ - L_sum)/K
     U_t = ((U′-R)/γ - U_sum)/K
 
-    insert_BeliefNode!(tree, BN, b′, a′, o, K)
+    BN′ = insert_BeliefNode!(tree, BN, b′, a′, o′, K)
 
-    SamplePoints(tree, Γ, b′, L_t, U_t, ϵ, t+1)
+    SamplePoints(tree, Γ, BN′, L_t, U_t, ϵ, t+1)
 
     return
 end
@@ -207,19 +229,35 @@ end
 # ========== needed functions ==========
 
 function PRUNE(tree::BeliefTree, Γ::AlphaVectorPolicy) # not sure what parameters needed
-    # see section III.D
-
-    # insert code to determine which belief-action pair to prune?
-
-    # BN = BeliefNode
-    # a = action (not ActionNode)
-
-    prune_actions(tree, tree.root, Γ)
-
-    nothing
+    Γ = prune_alphas(Γ)
+    prune_actions!(tree, tree.root, Γ)
+    return Γ
 end
 
-function prune_actions(tree, BN, Γ)
+function prune_alphas(Γ)
+    new_actions = Vector{eltype(Γ.action_map)}(undef,0)
+    new_alphas = Vector{eltype(Γ.alphas)}(undef,0)
+
+    for (a,α) in zip(Γ.action_map, Γ.alphas)
+        if α ∈ new_alphas
+            continue
+        end
+
+        push!(new_actions, a)
+        push!(new_alphas, α)
+        for β in Γ.alphas
+            if α[1]<β[1] && α[2]<β[2]
+                pop!(new_actions)
+                pop!(new_alphas)
+                break
+            end
+        end
+    end
+
+    return AlphaVectorPolicy(Γ.pomdp, new_alphas, new_actions)
+end
+
+function prune_actions!(tree, BN, Γ)
     b = belief(BN)
     𝒜 = unique(tree.qmdp_policy.action_map)
 
@@ -235,7 +273,7 @@ function prune_actions(tree, BN, Γ)
 
     for AN in children(BN)
         for BN′ in children(AN)
-            prune_actions(tree, BN′, Γ)
+            prune_actions!(tree, BN′, Γ)
         end
     end
 
@@ -247,9 +285,11 @@ end
 
 function Q(Γ::AlphaVectorPolicy,b,a)
     α_vectors, action_map = Γ.alphas, Γ.action_map
-    𝒜 = unique(action_map)
-    idx = 𝒜 .== a
-    maximum(α->α⋅b, α_vectors[idx])
+    if a ∉ action_map
+        return -Inf
+    end
+    idx = action_map .== a
+    return maximum(α->α⋅b, α_vectors[idx])
 end
 Q(Γ::AlphaVectorPolicy,b::BeliefNode,a) = Q(Γ,belief(b),a)
 
@@ -269,8 +309,8 @@ function τ(BN::BeliefNode, a, o)
     belief = value(BN)
     pomdp, 𝒮, b = belief.pomdp, belief.state_list, belief.b
 
-    # calculate the new belief
     b′ = similar(b)
+    K = 0.0
     for (si′,s′) in enumerate(𝒮)
         _sum = 0.0
         for (s,b_s) in zip(𝒮,b)

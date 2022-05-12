@@ -9,12 +9,11 @@ end
 function BeliefTree(pomdp::POMDP)
     belief = uniform_belief(pomdp)
     children = Vector{ActionNode{actiontype(pomdp)}}()
-    metadata = BeliefData() # metadata update here
+    metadata = BeliefData(observation=rand(POMDPs.observations(pomdp))) # metadata update here
     BN = BeliefNode(belief, children, metadata)
 
     # qmdp upper bound
     solver = QMDPSolver()
-    # solver = QMDPSolver(SparseValueIterationSolver())
     policy = solve(solver, pomdp)
 
     return BeliefTree(BN, 1, policy)
@@ -42,7 +41,7 @@ end
 function insert_BeliefNode!(tree::BeliefTree, parent::BeliefNode, b′, a, o, K) # creates a child belief node
     AN = get_ActionNode!(parent, a)
     
-    for BN in children(AN) # check if belief already exists
+    for BN in AN.children # check if belief already exists
         if observation(BN) == o
             return BN
         end

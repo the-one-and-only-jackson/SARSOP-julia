@@ -31,11 +31,3 @@ include("tree.jl")
 include("core.jl")
 
 end
-
-###########
-
-
-using POMDPModels: TigerPOMDP
-
-solver = SARSOPSolver(ϵ=1.0, max_time=10_000_000_000) # 10 seconds
-results = solve(solver, TigerPOMDP())
